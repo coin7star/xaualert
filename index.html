@@ -20,7 +20,7 @@
     <div class="flex justify-between items-center mb-8">
       <div>
         <h1 class="text-4xl font-bold">XAUUSD</h1>
-        <p class="text-zinc-400">Gold vs US Dollar • Bybit TradFi / Linear</p>
+        <p class="text-zinc-400">Gold vs US Dollar • Bybit</p>
       </div>
       <div id="status" class="text-sm px-3 py-1 bg-zinc-900 rounded-full flex items-center gap-2">
         <i class="fas fa-circle text-green-500 animate-pulse"></i>
@@ -67,98 +67,101 @@
         <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
           <i class="fas fa-chart-line"></i> TradFi Indicators
         </h3>
-        <div id="indicators" class="space-y-4">
-          <!-- Diisi oleh JS -->
+        <div id="indicators" class="space-y-4 text-sm">
+          <!-- Diisi JS -->
         </div>
       </div>
     </div>
 
+    <div id="error" class="mt-4 text-red-400 text-center hidden"></div>
+
     <div class="mt-8 text-center text-xs text-zinc-500">
-      Data dari Bybit Public API • Update setiap 2 detik • No API Key needed
+      Data dari Bybit Public API • Update setiap 3 detik
     </div>
   </div>
 
   <script>
     let lastPrice = 0;
-    const symbol = "XAUUSD+";      // Fix utama
-    const category = "linear";
+    const symbols = ["XAUUSD", "XAUUSD+", "XAUUSDT"]; // coba beberapa kemungkinan
+    let currentSymbol = symbols[0];
 
     async function fetchPrice() {
-      try {
-        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=\( {category}&symbol= \){encodeURIComponent(symbol)}`);
-        const data = await res.json();
+      const errorEl = document.getElementById('error');
+      errorEl.classList.add('hidden');
 
-        if (data.retCode === 0 && data.result.list && data.result.list.length > 0) {
-          const ticker = data.result.list[0];
-          
-          const price = parseFloat(ticker.lastPrice || ticker.markPrice);
-          const change = parseFloat(ticker.price24hPcnt);
-          const high = parseFloat(ticker.highPrice24h);
-          const low = parseFloat(ticker.lowPrice24h);
-          const vol = parseFloat(ticker.turnover24h || ticker.volume24h).toLocaleString('id-ID');
+      for (let symbol of symbols) {
+        try {
+          const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${encodeURIComponent(symbol)}`);
+          const data = await res.json();
 
-          // Update harga utama
-          const priceEl = document.getElementById('lastPrice');
-          priceEl.textContent = price.toFixed(2);
-          
-          if (price > lastPrice) priceEl.classList.add('up');
-          else if (price < lastPrice) priceEl.classList.add('down');
-          
-          setTimeout(() => {
-            priceEl.classList.remove('up', 'down');
-          }, 800);
+          if (data.retCode === 0 && data.result.list && data.result.list.length > 0) {
+            const ticker = data.result.list[0];
+            currentSymbol = symbol;
+            
+            const price = parseFloat(ticker.lastPrice || ticker.markPrice);
+            if (!price) continue;
 
-          lastPrice = price;
+            const change = parseFloat(ticker.price24hPcnt || 0);
+            const high = parseFloat(ticker.highPrice24h || 0);
+            const low = parseFloat(ticker.lowPrice24h || 0);
+            const vol = parseFloat(ticker.turnover24h || ticker.volume24h || 0).toLocaleString('id-ID');
 
-          // Change 24h
-          const changeEl = document.getElementById('change');
-          changeEl.innerHTML = `
-            \( {change >= 0 ? '+' : ''} \){change.toFixed(2)}% 
-            <span class="text-sm text-zinc-400">24h</span>
-          `;
-          changeEl.className = change >= 0 ? 'text-green-400 text-xl font-medium' : 'text-red-400 text-xl font-medium';
+            // Update UI
+            const priceEl = document.getElementById('lastPrice');
+            priceEl.textContent = price.toFixed(2);
+            
+            if (price > lastPrice) priceEl.classList.add('up');
+            else if (price < lastPrice) priceEl.classList.add('down');
+            setTimeout(() => priceEl.classList.remove('up', 'down'), 800);
 
-          // Data lain
-          document.getElementById('high').textContent = `High: ${high.toFixed(2)}`;
-          document.getElementById('low').textContent = `Low: ${low.toFixed(2)}`;
-          document.getElementById('volume').textContent = vol;
-          document.getElementById('bid').textContent = parseFloat(ticker.bid1Price || 0).toFixed(2);
-          document.getElementById('ask').textContent = parseFloat(ticker.ask1Price || 0).toFixed(2);
-          document.getElementById('timestamp').textContent = new Date().toLocaleTimeString('id-ID');
+            lastPrice = price;
 
-          renderIndicators(ticker);
-        } else {
-          console.error("Bybit API Error:", data);
-          document.getElementById('lastPrice').textContent = "Error";
-        }
-      } catch (err) {
-        console.error("Fetch Error:", err);
+            document.getElementById('change').innerHTML = `
+              \( {change >= 0 ? '+' : ''} \){change.toFixed(2)}% 
+              <span class="text-sm text-zinc-400">24h</span>
+            `;
+            document.getElementById('change').className = change >= 0 ? 'text-green-400 text-xl font-medium' : 'text-red-400 text-xl font-medium';
+
+            document.getElementById('high').textContent = `High: ${high.toFixed(2)}`;
+            document.getElementById('low').textContent = `Low: ${low.toFixed(2)}`;
+            document.getElementById('volume').textContent = vol;
+            document.getElementById('bid').textContent = parseFloat(ticker.bid1Price || 0).toFixed(2);
+            document.getElementById('ask').textContent = parseFloat(ticker.ask1Price || 0).toFixed(2);
+            document.getElementById('timestamp').textContent = new Date().toLocaleTimeString('id-ID');
+
+            renderIndicators(ticker, price);
+            return; // berhasil, stop loop
+          }
+        } catch (e) {}
       }
+
+      // Jika semua gagal
+      errorEl.textContent = `Data XAUUSD belum tersedia di API linear. Coba lagi nanti.`;
+      errorEl.classList.remove('hidden');
     }
 
-    function renderIndicators(ticker) {
+    function renderIndicators(ticker, price) {
       const container = document.getElementById('indicators');
-      const price = parseFloat(ticker.lastPrice || ticker.markPrice);
-      const high = parseFloat(ticker.highPrice24h);
-      const low = parseFloat(ticker.lowPrice24h);
+      const high = parseFloat(ticker.highPrice24h || 0);
+      const low = parseFloat(ticker.lowPrice24h || 0);
 
       const indicators = [
-        { name: "Daily Range", value: ((high - low) / price * 100).toFixed(2) + "%", type: "neutral" },
-        { name: "Bid-Ask Spread", value: (parseFloat(ticker.ask1Price || 0) - parseFloat(ticker.bid1Price || 0)).toFixed(2), type: "neutral" },
-        { name: "Approx MA 20", value: (price * 0.9985).toFixed(2), type: "neutral" },
+        { name: "Daily Range %", value: high && price ? ((high - low) / price * 100).toFixed(2) + "%" : "—", },
+        { name: "Bid-Ask Spread", value: (parseFloat(ticker.ask1Price || 0) - parseFloat(ticker.bid1Price || 0)).toFixed(2) },
+        { name: "Symbol Used", value: currentSymbol },
       ];
 
       container.innerHTML = indicators.map(ind => `
-        <div class="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
+        <div class="flex justify-between py-2 border-b border-zinc-800 last:border-0">
           <span class="text-zinc-400">${ind.name}</span>
-          <span class="font-mono text-white">${ind.value}</span>
+          <span class="font-mono">${ind.value}</span>
         </div>
       `).join('');
     }
 
-    // Jalankan
+    // Start
     fetchPrice();
-    setInterval(fetchPrice, 2000);
+    setInterval(fetchPrice, 3000);
   </script>
 </body>
 </html>
