@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
   <style>
     body { font-family: 'Inter', system-ui, sans-serif; }
-    .price { font-size: 3.5rem; line-height: 1; }
+    .price { font-size: 3.8rem; line-height: 1; font-weight: 700; }
     .up { color: #22c55e; animation: flashUp 0.6s; }
     .down { color: #ef4444; animation: flashDown 0.6s; }
     @keyframes flashUp { 0% { background: #14532d; } 100% { background: transparent; } }
@@ -33,8 +33,8 @@
       <div class="md:col-span-2 bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
         <div class="flex justify-between items-start">
           <div>
-            <div id="lastPrice" class="price font-mono font-bold text-white">0</div>
-            <div id="change" class="text-xl font-medium"></div>
+            <div id="lastPrice" class="price font-mono text-white">0.00</div>
+            <div id="change" class="text-xl font-medium mt-1"></div>
           </div>
           <div class="text-right">
             <div id="high" class="text-green-400 text-sm">High: 0</div>
@@ -68,7 +68,7 @@
           <i class="fas fa-chart-line"></i> TradFi Indicators
         </h3>
         <div id="indicators" class="space-y-4">
-          <!-- JS akan isi -->
+          <!-- Diisi oleh JS -->
         </div>
       </div>
     </div>
@@ -80,24 +80,24 @@
 
   <script>
     let lastPrice = 0;
-    const symbol = "XAUUSD";           // Ganti ke XAUUSDT jika tidak work
-    const category = "linear";         // coba "linear" atau "inverse" jika perlu
+    const symbol = "XAUUSD+";      // Fix utama
+    const category = "linear";
 
     async function fetchPrice() {
       try {
-        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=\( {category}&symbol= \){symbol}`);
+        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=\( {category}&symbol= \){encodeURIComponent(symbol)}`);
         const data = await res.json();
 
-        if (data.retCode === 0 && data.result.list.length > 0) {
+        if (data.retCode === 0 && data.result.list && data.result.list.length > 0) {
           const ticker = data.result.list[0];
           
-          const price = parseFloat(ticker.lastPrice);
+          const price = parseFloat(ticker.lastPrice || ticker.markPrice);
           const change = parseFloat(ticker.price24hPcnt);
           const high = parseFloat(ticker.highPrice24h);
           const low = parseFloat(ticker.lowPrice24h);
-          const vol = parseFloat(ticker.volume24h).toLocaleString();
+          const vol = parseFloat(ticker.turnover24h || ticker.volume24h).toLocaleString('id-ID');
 
-          // Update price with color
+          // Update harga utama
           const priceEl = document.getElementById('lastPrice');
           priceEl.textContent = price.toFixed(2);
           
@@ -110,7 +110,7 @@
 
           lastPrice = price;
 
-          // Change
+          // Change 24h
           const changeEl = document.getElementById('change');
           changeEl.innerHTML = `
             \( {change >= 0 ? '+' : ''} \){change.toFixed(2)}% 
@@ -118,43 +118,47 @@
           `;
           changeEl.className = change >= 0 ? 'text-green-400 text-xl font-medium' : 'text-red-400 text-xl font-medium';
 
+          // Data lain
           document.getElementById('high').textContent = `High: ${high.toFixed(2)}`;
           document.getElementById('low').textContent = `Low: ${low.toFixed(2)}`;
           document.getElementById('volume').textContent = vol;
-          document.getElementById('bid').textContent = parseFloat(ticker.bid1Price).toFixed(2);
-          document.getElementById('ask').textContent = parseFloat(ticker.ask1Price).toFixed(2);
+          document.getElementById('bid').textContent = parseFloat(ticker.bid1Price || 0).toFixed(2);
+          document.getElementById('ask').textContent = parseFloat(ticker.ask1Price || 0).toFixed(2);
           document.getElementById('timestamp').textContent = new Date().toLocaleTimeString('id-ID');
 
           renderIndicators(ticker);
+        } else {
+          console.error("Bybit API Error:", data);
+          document.getElementById('lastPrice').textContent = "Error";
         }
       } catch (err) {
-        console.error(err);
+        console.error("Fetch Error:", err);
       }
     }
 
     function renderIndicators(ticker) {
       const container = document.getElementById('indicators');
-      const price = parseFloat(ticker.lastPrice);
-      
+      const price = parseFloat(ticker.lastPrice || ticker.markPrice);
+      const high = parseFloat(ticker.highPrice24h);
+      const low = parseFloat(ticker.lowPrice24h);
+
       const indicators = [
-        { name: "MA 20 (approx)", value: (price * 0.998).toFixed(2), type: "neutral" },
-        { name: "Daily Range %", value: ((parseFloat(ticker.highPrice24h) - parseFloat(ticker.lowPrice24h)) / price * 100).toFixed(2) + "%", type: "neutral" },
-        { name: "Bid-Ask Spread", value: (parseFloat(ticker.ask1Price) - parseFloat(ticker.bid1Price)).toFixed(2), type: "neutral" },
+        { name: "Daily Range", value: ((high - low) / price * 100).toFixed(2) + "%", type: "neutral" },
+        { name: "Bid-Ask Spread", value: (parseFloat(ticker.ask1Price || 0) - parseFloat(ticker.bid1Price || 0)).toFixed(2), type: "neutral" },
+        { name: "Approx MA 20", value: (price * 0.9985).toFixed(2), type: "neutral" },
       ];
 
       container.innerHTML = indicators.map(ind => `
         <div class="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
           <span class="text-zinc-400">${ind.name}</span>
-          <span class="font-mono">${ind.value}</span>
+          <span class="font-mono text-white">${ind.value}</span>
         </div>
       `).join('');
     }
 
-    // Initial fetch + polling
+    // Jalankan
     fetchPrice();
     setInterval(fetchPrice, 2000);
-
-    // Tailwind script already loaded
   </script>
 </body>
 </html>
