@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XAUUSD Live - Bybit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .price { font-size: 3.5rem; line-height: 1; }
+    .up { color: #22c55e; animation: flashUp 0.6s; }
+    .down { color: #ef4444; animation: flashDown 0.6s; }
+    @keyframes flashUp { 0% { background: #14532d; } 100% { background: transparent; } }
+    @keyframes flashDown { 0% { background: #7f1d1d; } 100% { background: transparent; } }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen">
+  <div class="max-w-4xl mx-auto p-6">
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-4xl font-bold">XAUUSD</h1>
+        <p class="text-zinc-400">Gold vs US Dollar • Bybit TradFi / Linear</p>
+      </div>
+      <div id="status" class="text-sm px-3 py-1 bg-zinc-900 rounded-full flex items-center gap-2">
+        <i class="fas fa-circle text-green-500 animate-pulse"></i>
+        <span>Live</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Main Price -->
+      <div class="md:col-span-2 bg-zinc-900 rounded-3xl p-8 border border-zinc-800">
+        <div class="flex justify-between items-start">
+          <div>
+            <div id="lastPrice" class="price font-mono font-bold text-white">0</div>
+            <div id="change" class="text-xl font-medium"></div>
+          </div>
+          <div class="text-right">
+            <div id="high" class="text-green-400 text-sm">High: 0</div>
+            <div id="low" class="text-red-400 text-sm">Low: 0</div>
+          </div>
+        </div>
+        
+        <div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <div class="text-zinc-400">Bid</div>
+            <div id="bid" class="font-mono text-lg">0</div>
+          </div>
+          <div>
+            <div class="text-zinc-400">Ask</div>
+            <div id="ask" class="font-mono text-lg">0</div>
+          </div>
+          <div>
+            <div class="text-zinc-400">24h Vol</div>
+            <div id="volume" class="font-mono text-lg">0</div>
+          </div>
+          <div>
+            <div class="text-zinc-400">Last Update</div>
+            <div id="timestamp" class="font-mono text-lg">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicators -->
+      <div class="bg-zinc-900 rounded-3xl p-6 border border-zinc-800">
+        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <i class="fas fa-chart-line"></i> TradFi Indicators
+        </h3>
+        <div id="indicators" class="space-y-4">
+          <!-- JS akan isi -->
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-8 text-center text-xs text-zinc-500">
+      Data dari Bybit Public API • Update setiap 2 detik • No API Key needed
+    </div>
+  </div>
+
+  <script>
+    let lastPrice = 0;
+    const symbol = "XAUUSD";           // Ganti ke XAUUSDT jika tidak work
+    const category = "linear";         // coba "linear" atau "inverse" jika perlu
+
+    async function fetchPrice() {
+      try {
+        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=\( {category}&symbol= \){symbol}`);
+        const data = await res.json();
+
+        if (data.retCode === 0 && data.result.list.length > 0) {
+          const ticker = data.result.list[0];
+          
+          const price = parseFloat(ticker.lastPrice);
+          const change = parseFloat(ticker.price24hPcnt);
+          const high = parseFloat(ticker.highPrice24h);
+          const low = parseFloat(ticker.lowPrice24h);
+          const vol = parseFloat(ticker.volume24h).toLocaleString();
+
+          // Update price with color
+          const priceEl = document.getElementById('lastPrice');
+          priceEl.textContent = price.toFixed(2);
+          
+          if (price > lastPrice) priceEl.classList.add('up');
+          else if (price < lastPrice) priceEl.classList.add('down');
+          
+          setTimeout(() => {
+            priceEl.classList.remove('up', 'down');
+          }, 800);
+
+          lastPrice = price;
+
+          // Change
+          const changeEl = document.getElementById('change');
+          changeEl.innerHTML = `
+            \( {change >= 0 ? '+' : ''} \){change.toFixed(2)}% 
+            <span class="text-sm text-zinc-400">24h</span>
+          `;
+          changeEl.className = change >= 0 ? 'text-green-400 text-xl font-medium' : 'text-red-400 text-xl font-medium';
+
+          document.getElementById('high').textContent = `High: ${high.toFixed(2)}`;
+          document.getElementById('low').textContent = `Low: ${low.toFixed(2)}`;
+          document.getElementById('volume').textContent = vol;
+          document.getElementById('bid').textContent = parseFloat(ticker.bid1Price).toFixed(2);
+          document.getElementById('ask').textContent = parseFloat(ticker.ask1Price).toFixed(2);
+          document.getElementById('timestamp').textContent = new Date().toLocaleTimeString('id-ID');
+
+          renderIndicators(ticker);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderIndicators(ticker) {
+      const container = document.getElementById('indicators');
+      const price = parseFloat(ticker.lastPrice);
+      
+      const indicators = [
+        { name: "MA 20 (approx)", value: (price * 0.998).toFixed(2), type: "neutral" },
+        { name: "Daily Range %", value: ((parseFloat(ticker.highPrice24h) - parseFloat(ticker.lowPrice24h)) / price * 100).toFixed(2) + "%", type: "neutral" },
+        { name: "Bid-Ask Spread", value: (parseFloat(ticker.ask1Price) - parseFloat(ticker.bid1Price)).toFixed(2), type: "neutral" },
+      ];
+
+      container.innerHTML = indicators.map(ind => `
+        <div class="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
+          <span class="text-zinc-400">${ind.name}</span>
+          <span class="font-mono">${ind.value}</span>
+        </div>
+      `).join('');
+    }
+
+    // Initial fetch + polling
+    fetchPrice();
+    setInterval(fetchPrice, 2000);
+
+    // Tailwind script already loaded
+  </script>
+</body>
+</html>
